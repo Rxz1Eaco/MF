@@ -1,19 +1,16 @@
-import pandas as pd
-import streamlit as st
+import pandas as pd 
+import streamlit as st 
 
-st.title("MF - AUTO SOCORRO")
 
-# =========================
-# CARREGAMENTO DOS DADOS
-# =========================
 
-# https://docs.google.com/spreadsheets/d/1Ez2ADJrTNzE2tCmlNpoGUsG29PtMVPDP1ZsKzG4z4iQ/edit?resourcekey=&gid=1270983244#gid=1270983244
+st.title("Controles Serviços MA")
+
 
 
 @st.cache_data
 def carregar_dados():
-    sheet_id = "1Ez2ADJrTNzE2tCmlNpoGUsG29PtMVPDP1ZsKzG4z4iQ"
-    gid = "1270983244"
+    sheet_id = "1nT6I4SC7eMo8Oowk4g4ypLfHRQhSJeIIcbHXttZ1UW0"
+    gid = "409250655"
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
 
     df = pd.read_csv(
@@ -29,9 +26,6 @@ def carregar_dados():
 
 df = carregar_dados()
 
-if st.button("🔄 Atualizar Dados"):
-    carregar_dados.clear()
-    st.rerun()
 
 df = df.drop(columns=['Carimbo de data/hora'])
 # st.dataframe(df)
@@ -55,34 +49,60 @@ data_fim = st.sidebar.date_input(
     value=df["Dia"].max()
 )
 
+tipos = df["Tipo"].dropna().unique()
+
+filtro_tipo = st.sidebar.multiselect(
+    "Tipo de Serviço:",
+    options=tipos,
+    default=tipos
+)
+
+
 # Aplicar filtro
 df_filtrado = df[
     (df["Dia"] >= pd.to_datetime(data_inicio)) &
-    (df["Dia"] <= pd.to_datetime(data_fim))
+    (df["Dia"] <= pd.to_datetime(data_fim)) &
+    (df["Tipo"].isin(filtro_tipo))
 ]
-
-col1, col2, col3 = st.columns(3)
-
-col1.metric(
-    "Receita Total",
-    f"R$ {df_filtrado['Valor Serviço'].sum():,.2f}"
-)
-
-col2.metric(
-    "Quantidade de Serviços",
-    df_filtrado.shape[0]
-)
-
-col3.metric(
-    "Ticket Médio",
-    f"R$ {(df_filtrado['Valor Serviço'].mean()):,.2f}"
-)
-
 
 
 
 
 st.dataframe(df_filtrado)
 
+if st.button("🔄 Atualizar Dados"):
+    carregar_dados.clear()
+    st.rerun()
 
 
+st.markdown("### KPIs")
+col1 , col2 = st.columns(2)
+quantidade_inova = (df_filtrado["Tipo"] == "Inova").sum()
+col1.metric("Serviços: Inova", quantidade_inova) 
+
+quantidade_reboque = (df_filtrado["Tipo"] == "MF Reboque").sum()
+col2.metric("Serviços: MF Reboque", quantidade_reboque) 
+
+col1.metric(
+    "Receita Total",
+    f"R$ {df_filtrado['Valor Serviço'].sum():,.2f}"
+)
+
+st.markdown("### 📈 Serviços por Dia")
+
+servicos_por_dia = df_filtrado.groupby("Dia").size()
+
+st.line_chart(servicos_por_dia)
+
+st.markdown("### 🏆 Ranking de Motoristas")
+
+ranking_motoristas = (
+    df_filtrado.groupby("Motorista")
+    .size()
+    .reset_index(name="Quantidade")
+    .sort_values(by="Quantidade", ascending=False)
+)
+
+st.dataframe(ranking_motoristas)
+
+st.bar_chart(ranking_motoristas.set_index("Motorista"))
